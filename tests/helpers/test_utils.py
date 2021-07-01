@@ -18,10 +18,7 @@ import filecmp
 import os
 import unittest
 
-__all__ = [
-    "performance_test",
-    "pretrained_test",
-]
+__all__ = ["performance_test", "pretrained_test", "get_top_scores_label"]
 
 from typing import Any, Callable, Dict
 

@@ -12,32 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Wrapper of the Zero Shot Classifier models on HuggingFace platform
+Wrapper of the Sentiment Analysis models on HuggingFace platform
 """
 from typing import Dict, Set
 import importlib
 
 from transformers import pipeline
-
+from ft.onto.base_ontology import Classification
 from forte.common import Resources
 from forte.common.configuration import Config
 from forte.data.data_pack import DataPack
 from forte.processors.base import PackProcessor
 
 __all__ = [
-    "ZeroShotClassifier",
+    "HFSentimentAnalysis",
 ]
 
 
-class ZeroShotClassifier(PackProcessor):
+class HFSentimentAnalysis(PackProcessor):
     r"""Wrapper of the models on HuggingFace platform with pipeline tag of
-    `zero-shot-classification`.
-    https://huggingface.co/models?pipeline_tag=zero-shot-classification
+    `text-classification`.
+    https://huggingface.co/models?pipeline_tag=text-classification
     This wrapper could take any model name on HuggingFace platform with pipeline
-    tag of `zero-shot-classification` in configs to make prediction on the user
+    tag of `sentiment-analysis` in configs to make prediction on the user
     specified entry type in the input pack and the prediction result goes to the
-    user specified attribute name of that entry type in the output pack. User
-    could input the prediction labels in the config with any word or phrase.
+    user specified attribute name of that entry type in the output pack.
 
     """
 
@@ -48,10 +47,11 @@ class ZeroShotClassifier(PackProcessor):
     def set_up(self):
         device_num = self.configs["cuda_device"]
         self.classifier = pipeline(
-            "zero-shot-classification",
+            "sentiment-analysis",
             model=self.configs.model_name,
             framework="pt",
             device=device_num,
+            return_all_scores=True,
         )
 
     def initialize(self, resources: Resources, configs: Config):
@@ -64,20 +64,19 @@ class ZeroShotClassifier(PackProcessor):
         mod = importlib.import_module(path_str)
         entry = getattr(mod, module_str)
         for entry_specified in input_pack.get(entry_type=entry):
-            result = self.classifier(
-                sequences=entry_specified.text,
-                candidate_labels=self.configs.candidate_labels,
-                hypothesis_template=self.configs.hypothesis_template,
-                multi_class=self.configs.multi_class,
-            )
+            result = self.classifier(entry_specified.text)
             curr_dict = getattr(entry_specified, self.configs.attribute_name)
-            for idx, lab in enumerate(result["labels"]):
-                curr_dict[lab] = round(result["scores"][idx], 4)
+            cls_field = Classification(input_pack)
+            res_dict = dict()
+            for idx, res in enumerate(result[0]):
+                res_dict[res["label"]] = round(res["score"], 4)
+            cls_field.classification_result = res_dict
+            curr_dict[self.configs.save_to_key] = cls_field
             setattr(entry_specified, self.configs.attribute_name, curr_dict)
 
     @classmethod
     def default_configs(cls):
-        r"""This defines a basic config structure for ZeroShotClassifier.
+        r"""This defines a basic config structure for HFSentimentAnalysis.
 
         Following are the keys for this dictionary:
             - `entry_type`: defines which entry type in the input pack to make
@@ -87,23 +86,9 @@ class ZeroShotClassifier(PackProcessor):
               in the input pack to save prediction to. The default
               saves prediction to the `classification` attribute for each
               `Sentence` in the input pack.
-            - `multi_class`: whether to allow multiple class true
-            - `model_name`: language model, default is
-              `"valhalla/distilbart-mnli-12-1"`.
+            - `model_name`: language model
               The wrapper supports Hugging Face models with pipeline tag of
-              `zero-shot-classification`.
-            - `candidate_labels`: The set of possible class labels to
-              classify each sequence into. Can be a single label, a string of
-              comma-separated labels, or a list of labels. Note that for the
-              model with a specific language, the candidate_labels need to
-              be of that language.
-            - `hypothesis_template`: The template used to turn each label
-              into an NLI-style hypothesis. This template must include a {}
-              or similar syntax for the candidate label to be inserted into
-              the template. For example, the default
-              template is :obj:`"This example is {}."` Note that for the
-              model with a specific language, the hypothesis_template need to
-              be of that language.
+              `text-classification`.
             - `cuda_device`: Device ordinal for CPU/GPU supports. Setting
               this to -1 will leverage CPU, a positive will run the model
               on the associated CUDA device id.
@@ -114,23 +99,16 @@ class ZeroShotClassifier(PackProcessor):
         config.update(
             {
                 "entry_type": "ft.onto.base_ontology.Sentence",
-                "attribute_name": "classification",
-                "multi_class": True,
-                "model_name": "valhalla/distilbart-mnli-12-1",
-                "candidate_labels": [
-                    "travel",
-                    "cooking",
-                    "dancing",
-                    "exploration",
-                ],
-                "hypothesis_template": "This example is {}.",
+                "attribute_name": "classifications",
+                "save_to_key": "sentiment",
+                "model_name": "bhadresh-savani/distilbert-base-uncased-emotion",
                 "cuda_device": -1,
             }
         )
         return config
 
     def expected_types_and_attributes(self):
-        r"""Method to add user specified expected type from config which
+        r"""Method to add user defined expected type which
         would be checked before running the processor if
         the pipeline is initialized with
         `enforce_consistency=True` or
@@ -148,9 +126,4 @@ class ZeroShotClassifier(PackProcessor):
             record_meta: the field in the datapack for type record that need to
                 fill in for consistency checking.
         """
-        if self.configs.entry_type in record_meta:
-            record_meta[self.configs.entry_type].add(
-                self.configs.attribute_name
-            )
-        else:
-            record_meta[self.configs.entry_type] = {self.configs.attribute_name}
+        record_meta[self.configs.entry_type].add(self.configs.attribute_name)

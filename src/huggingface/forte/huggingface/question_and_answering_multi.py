@@ -13,7 +13,7 @@
 # limitations under the License.
 """
 Wrapper of the Question Answering models on HuggingFace platform (context
-understanding)
+understanding) with Multipack input
 """
 from transformers import pipeline
 from ft.onto.base_ontology import Phrase, Sentence
@@ -88,7 +88,7 @@ class QuestionAnsweringMulti(MultiPackProcessor):
 
     @classmethod
     def default_configs(cls):
-        r"""This defines a basic config structure for `QuestionAnsweringSingle`.
+        r"""This defines a basic config structure for `QuestionAnsweringMulti`.
 
         Following are the keys for this dictionary:
             - `entry_type`: defines which entry type in the input pack to make
