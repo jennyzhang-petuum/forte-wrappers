@@ -68,7 +68,7 @@ class HFSentimentAnalysis(PackProcessor):
             curr_dict = getattr(entry_specified, self.configs.attribute_name)
             cls_field = Classification(input_pack)
             res_dict = dict()
-            for idx, res in enumerate(result[0]):
+            for res in result[0]:
                 res_dict[res["label"]] = round(res["score"], 4)
             cls_field.classification_result = res_dict
             curr_dict[self.configs.save_to_key] = cls_field
