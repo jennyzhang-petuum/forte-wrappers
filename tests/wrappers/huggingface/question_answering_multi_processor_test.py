@@ -13,6 +13,7 @@
 # limitations under the License.
 """
 Unit tests for QuestionAnsweringMulti processors.
+
 """
 import unittest
 from forte.pipeline import Pipeline
@@ -66,6 +67,7 @@ docs = {
 
 
 class MutliDocPackAdder(MultiPackProcessor):
+
     def _process(self, input_pack: MultiPack):
         for doc_i in docs:
             pack = input_pack.add_pack(ref_name=doc_i)
